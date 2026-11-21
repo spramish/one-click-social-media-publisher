@@ -133,6 +133,13 @@ class Settings(BaseSettings):
     #: application key is used, with a different HKDF context (so the signing
     #: key and the encryption key are never the same bytes).
     oauth_encryption_key: str | None = None
+    #: **Sandbox mode.** When true, every platform integration is served by an
+    #: in-process sandbox implementation (see ``app/services/*/sandbox.py``):
+    #: connecting an account needs no developer credentials, and publishing /
+    #: analytics return simulated data. It exists so the whole connect →
+    #: publish → analytics journey can be demonstrated end to end on a machine
+    #: with no registered platform apps. It is refused in production.
+    demo_mode: bool = False
 
     # --- Meta (Facebook + Instagram Graph API) ------------------------------
     #: Graph API version segment used in every Meta URL.
@@ -363,6 +370,10 @@ class Settings(BaseSettings):
             )
         if not self.refresh_cookie_secure:
             raise ValueError("REFRESH_COOKIE_SECURE must be true when ENVIRONMENT=production")
+        if self.demo_mode:
+            # Sandbox mode fabricates accounts and publish results, so it must
+            # never be reachable from a real deployment.
+            raise ValueError("DEMO_MODE must be false when ENVIRONMENT=production")
         return self
 
     @property

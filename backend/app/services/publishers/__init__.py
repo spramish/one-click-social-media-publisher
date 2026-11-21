@@ -13,6 +13,7 @@ shape, and the same "fail loudly on an unregistered platform" contract.
 
 from __future__ import annotations
 
+from app.core.config import settings
 from app.db.enums import SocialPlatform
 from app.services.publishers.base import (
     CaptionValidationError,
@@ -30,6 +31,12 @@ from app.services.publishers.base import (
 )
 from app.services.publishers.facebook import FacebookPublisher
 from app.services.publishers.instagram import InstagramPublisher
+from app.services.publishers.sandbox import (
+    SandboxFacebookPublisher,
+    SandboxInstagramPublisher,
+    SandboxTikTokPublisher,
+    SandboxYouTubePublisher,
+)
 from app.services.publishers.tiktok import TikTokPublisher
 from app.services.publishers.youtube import YouTubePublisher
 
@@ -44,16 +51,29 @@ _PUBLISHERS: dict[SocialPlatform, Publisher] = {
     SocialPlatform.TIKTOK: TikTokPublisher(),
 }
 
+#: The ``DEMO_MODE`` alternative: same platform limits, simulated uploads.
+#: See :mod:`app.services.publishers.sandbox`.
+_SANDBOX_PUBLISHERS: dict[SocialPlatform, Publisher] = {
+    SocialPlatform.FACEBOOK: SandboxFacebookPublisher(),
+    SocialPlatform.INSTAGRAM: SandboxInstagramPublisher(),
+    SocialPlatform.YOUTUBE: SandboxYouTubePublisher(),
+    SocialPlatform.TIKTOK: SandboxTikTokPublisher(),
+}
+
 
 def get_publisher(platform: SocialPlatform) -> Publisher:
     """Return the publisher that implements ``platform``.
+
+    In ``DEMO_MODE`` the sandbox implementation is returned, which validates
+    against the same limits but reports a simulated publish instead of uploading.
 
     Raises:
         PublishError: the platform has no registered implementation. This is a
             programming error rather than a user error, so it fails loudly.
     """
+    registry = _SANDBOX_PUBLISHERS if settings.demo_mode else _PUBLISHERS
     try:
-        return _PUBLISHERS[platform]
+        return registry[platform]
     except KeyError as exc:  # pragma: no cover - guarded by the enum
         raise PublishError(f"No publisher is registered for '{platform.value}'.") from exc
 

@@ -307,6 +307,26 @@ for character):
 > rules. The full per-platform walkthrough — apps, scopes, review, and eligibility — is in
 > [`OAUTH_SETUP.md`](OAUTH_SETUP.md).
 
+#### 4.4.1 Sandbox mode (`DEMO_MODE`) — no developer apps needed
+
+To demonstrate the whole journey (connect → publish → analytics) on a machine with **no**
+registered platform apps, set one switch in `backend/.env` and restart the backend:
+
+```dotenv
+DEMO_MODE=true
+```
+
+Every platform integration is then served in-process: the Connect buttons are enabled for all
+four platforms, authorizing an account writes a real connected-account row (with an encrypted
+credential and the ordinary single-use `state` validation), publishing records a terminal
+"published" result, and the analytics pages return simulated numbers. Sandbox accounts, tokens
+and metric payloads are tagged `sandbox` so they are never mistaken for live data — a connected
+account is named e.g. `Facebook (sandbox)`.
+
+`DEMO_MODE` is a **demonstration aid, not a deployment option**: with `ENVIRONMENT=production`
+the backend **refuses to boot** while it is `true`, exactly like the `SECRET_KEY` guard. Leave it
+`false` (the default) and fill in the credentials above for anything real.
+
 ---
 
 ### 4.5 AI content generation (OpenAI)
@@ -514,11 +534,11 @@ PostgreSQL must be running — the database and auth tests execute real SQL.
 cd backend
 .\.venv\Scripts\Activate.ps1
 $env:POSTGRES_PORT='5434'    # this machine — see §4.0
-pytest                       # 394 tests
+pytest                       # 402 tests
 pytest app/tests/test_models.py -v          # unit only, no database needed
 ```
 
-Expected: **394 passed**, 0 failed, 2 warnings, exit 0.
+Expected: **402 passed**, 0 failed, 2 warnings, exit 0.
 
 > If you see many `Socket is not connected` errors all at once, the local **PostgreSQL** server has
 > died — restart it (see §4.0) and re-run. Start it **detached** (e.g. via a scheduled task / `Win32_Process.Create`)

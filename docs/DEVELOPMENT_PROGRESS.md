@@ -23,6 +23,11 @@ Legend: ✅ complete · 🚧 in progress · ⏳ pending · ⛔ blocked (external
 | 13 | Security & Performance | ✅ Implemented + verified — in-house fixed-window rate limiter (Redis counters, in-process fallback), security headers + CSRF origin guard, GZip responses, append-only `audit_logs` trail behind `audit:read`, 383/383 tests green |
 | 14 | Complete Testing | ✅ Implemented + verified — 9 Celery worker/Beat tests (tasks driven in-process) + a Vitest frontend suite (47 tests across 6 files); 394 backend / 47 frontend tests green |
 | 15 | Production Deployment | ✅ Implemented — non-root multi-stage `Dockerfile.prod` ×2, 7-service `docker-compose.prod.yml` (only nginx public), nginx TLS proxy with streamed 2 GiB uploads, opt-in Sentry, backup/restore scripts, GitHub Actions CI, `DEPLOYMENT.md` runbook (container artefacts reviewed, not executed — Docker absent) |
+| — | Sandbox mode (`DEMO_MODE`) *(post-plan addition)* | ✅ Implemented + verified — in-process sandbox implementations for OAuth / publishers / metrics behind one `DEMO_MODE` flag, so the user-panel Connect → Publish → Analytics flow works with no developer apps; refused when `ENVIRONMENT=production`; 402 backend tests green (`test_sandbox.py`, 8 tests) |
+
+> **Sandbox mode** is not a master-plan phase — it is a later, user-requested addition so the
+> account-connection and publishing flows can be demonstrated in the user panel without real platform
+> credentials. Details: `docs/PROJECT_STATE.md` (Completed features) and `docs/SETUP_GUIDE.md` §4.4.1.
 
 ---
 

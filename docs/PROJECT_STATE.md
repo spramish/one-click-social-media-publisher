@@ -1,7 +1,7 @@
 # Project State
 
 Author: **Pramish Sharma**
-Last updated: Phase 15 — Production Deployment ✅ COMPLETE (2026-11-22)
+Last updated: Phase 15 — Production Deployment ✅ COMPLETE (2026-11-22) · post-phase addition: Sandbox mode (`DEMO_MODE`)
 This file is the single source of truth for project continuity. Update it after every phase.
 
 ---
@@ -9,9 +9,46 @@ This file is the single source of truth for project continuity. Update it after 
 ## Current phase
 
 **Phase 15 — Production Deployment (complete).** All 15 phases of the master plan are done: the platform
-is feature-complete, tested, and has a real deployment path. Nothing is outstanding.
+is feature-complete, tested, and has a real deployment path. The only post-plan addition is **Sandbox
+mode (`DEMO_MODE`)** — a user-requested switch that makes the Connect-accounts, publish and analytics
+flows fully usable in the user panel without any platform developer application (see below).
 
 ## Completed features
+
+**Sandbox mode (`DEMO_MODE`) — post-Phase-15 addition**
+
+- **Why** — every platform integration needed real developer applications (`*_CLIENT_ID` /
+  `*_CLIENT_SECRET`), so the Connect button rendered disabled and the flow could not be demonstrated.
+  The user asked for a **working, showable user-panel flow** ("put it so i can add my account here").
+  Sandbox mode delivers that without touching the account/publish/analytics services.
+- **Switch** — one setting, `demo_mode` (`DEMO_MODE`), added to `app/core/config.py`. It is **off by
+  default** in `.env.example` and `.env.production.example`, and **refused at boot when
+  `ENVIRONMENT=production`** (`ValueError("DEMO_MODE must be false when ENVIRONMENT=production")`,
+  added to `_reject_insecure_production_config` alongside the `SECRET_KEY` / `REFRESH_COOKIE_SECURE`
+  guards).
+- **Registry swap, not special-casing** — each registry reads
+  `registry = _SANDBOX_* if settings.demo_mode else _*`, so `get_provider` / `get_publisher` /
+  `get_metrics_provider` swap every integration in one place. The real classes still supply `platform`,
+  `display_name`, `scopes` and `capability`; the sandbox mixin only overrides behaviour.
+- **`app/services/oauth/sandbox.py`** — `_SandboxProvider` is always `is_configured() == True` (no
+  secrets), and `authorization_url()` returns **this server's own callback** with a fabricated
+  `code=sandbox-code-…`, so the ordinary browser round-trip completes without leaving the app. A real
+  `SocialAccount` row is still created through the normal `begin_authorization` → `complete_connection`
+  path (single-use `state` consumed under `SELECT … FOR UPDATE`, tokens encrypted at rest).
+  Four subclasses: `Sandbox` + `Facebook`/`Instagram`/`YouTube`/`TikTok` providers.
+- **`app/services/publishers/sandbox.py`** — publishes succeed with a `sandbox-<platform>-…` remote id
+  (`status="published"`). **Validation is not stubbed**: `validate_media` / `validate_caption` still run,
+  so a bad upload or over-long caption is refused exactly as in production.
+- **`app/services/metrics/sandbox.py`** — analytics light up with **deterministic** (SHA-256-seeded)
+  values, so a refresh does not make the numbers jitter; the funnel is always
+  `impressions >= reach >= views`.
+- **Provenance** — every sandbox result carries `{"sandbox": true}` in its `raw` payload and accounts
+  are named e.g. `Facebook (sandbox)` / `@facebook_sandbox`, so simulated data is never mistakable for
+  real data.
+- **Tests** — `app/tests/test_sandbox.py` (**8** tests). `conftest.py` pins
+  `os.environ.setdefault("DEMO_MODE", "false")` so the ordinary suite keeps exercising the real,
+  transport-injected classes; the sandbox tests opt back in via `monkeypatch`.
+- **Docs** — `docs/SETUP_GUIDE.md` §4.4.1 documents the switch; production templates default it off.
 
 **Phase 15 — Production Deployment**
 
@@ -1490,6 +1527,18 @@ Environment: Windows, Node v24.21.0, npm 11.19.0, Python **3.12.10** (venv), Doc
 
 ## Tests passed
 
+**Sandbox mode (`DEMO_MODE`) — post-Phase-15 addition**
+
+- `app/tests/test_sandbox.py` — **8** tests: the sandbox provider reports `is_configured() == True` with
+  **no** credentials set; its authorization URL targets this server's own callback; `/capabilities`
+  reports all four platforms `configured: true`; a full connect creates a real `SocialAccount`; a sandbox
+  publish returns a terminal `published` result; metrics are stable across reads and respect
+  `impressions >= reach >= views`; `DEMO_MODE=true` with `ENVIRONMENT=production` is refused at boot
+  (`pytest.raises(ValidationError, match="DEMO_MODE")`); and the placeholder `SECRET_KEY` is still
+  refused in production.
+- Total: backend **402 passed**, 0 failed (383 + 9 worker + 2 observability + 8 sandbox); the frontend
+  suite is **47 tests** under Vitest.
+
 **Phase 15**
 
 - `app/tests/test_observability.py` — **2** tests: with no `SENTRY_DSN` `configure_error_tracking()`
@@ -1687,10 +1736,10 @@ Environment: Windows, Node v24.21.0, npm 11.19.0, Python **3.12.10** (venv), Doc
 
 ## Tests failed
 
-None. Final full backend suite: **394 passed**, 0 failed, 2 warnings, exit 0. (Earlier runs in this
+None. Final full backend suite: **402 passed**, 0 failed, 2 warnings, exit 0. (Earlier runs in this
 session showed `test_worker.py` connection errors because the local **PostgreSQL** process was being
-killed by the shell that launched it; once PostgreSQL was started detached, the suite passed
-**394/394**.)
+killed by the shell that launched it; once PostgreSQL was started detached, the suite passed. The
+count rose from 394 to 402 when `app/tests/test_sandbox.py` landed.)
 
 ## Known issues / blockers
 
@@ -1774,6 +1823,22 @@ killed by the shell that launched it; once PostgreSQL was started detached, the 
    production **config guards** and the **Sentry wiring** *are* covered by native tests
    (`test_observability.py`, and the `ENVIRONMENT=production` boot refusals). Everything else in the
    Phase 15 runbook should be treated as reviewed-not-executed until a machine with Docker is available.
+
+11. ℹ️ **Sandbox mode (`DEMO_MODE=true`, this machine's `backend/.env`) simulates the platform layer.**
+   With it on, connecting an account, publishing and analytics all succeed **in the user panel** with no
+   developer application — but the data is fabricated (`{"sandbox": true}`, `sandbox-…` ids,
+   `Facebook (sandbox)` accounts). It is a **demonstration switch, not a production feature**: it is off
+   by default in both env templates, refused at boot when `ENVIRONMENT=production`, and pinned off for
+   the test suite. The following genuinely **cannot** work without real platform credentials, in either
+   mode:
+   - **Live publishing** to Meta (Facebook/Instagram), Google (YouTube) and TikTok — needs a developer
+     app per platform, and for Instagram/YouTube a **publishing audit / app review**; an unaudited TikTok
+     app can only post `SELF_ONLY` (private) videos.
+   - **Live metrics** — read through the same Phase 6 connections, so they need the same real apps plus
+     the platform's analytics scopes.
+   - **Public reach on those platforms** — an app in development mode can only act on accounts with a
+     role on that app.
+   Turning `DEMO_MODE` off restores the real clients; nothing else changes. See `docs/OAUTH_SETUP.md`.
 
 ## Current architecture
 

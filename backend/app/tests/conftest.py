@@ -41,6 +41,13 @@ os.environ.setdefault("PASSWORD_HASH_ROUNDS", "4")
 # back on explicitly (see ``test_security_hardening.py``).
 os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
+# Sandbox mode is a demonstration switch, not a test switch. A developer's
+# ``.env`` may enable it, but the suite must always exercise the real
+# providers — its mocks replace their HTTP transport. Real environment
+# variables win over ``.env``, so this pins it off for every test; the sandbox
+# tests opt back in with ``monkeypatch`` (see ``test_sandbox.py``).
+os.environ.setdefault("DEMO_MODE", "false")
+
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

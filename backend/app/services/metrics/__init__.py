@@ -14,6 +14,7 @@ platform" contract.
 
 from __future__ import annotations
 
+from app.core.config import settings
 from app.db.enums import SocialPlatform
 from app.services.metrics.base import (
     AccountMetrics,
@@ -28,6 +29,12 @@ from app.services.metrics.base import (
 )
 from app.services.metrics.facebook import FacebookMetricsProvider
 from app.services.metrics.instagram import InstagramMetricsProvider
+from app.services.metrics.sandbox import (
+    SandboxFacebookMetricsProvider,
+    SandboxInstagramMetricsProvider,
+    SandboxTikTokMetricsProvider,
+    SandboxYouTubeMetricsProvider,
+)
 from app.services.metrics.tiktok import TikTokMetricsProvider
 from app.services.metrics.youtube import YouTubeMetricsProvider
 
@@ -42,17 +49,30 @@ _PROVIDERS: dict[SocialPlatform, MetricsProvider] = {
     SocialPlatform.TIKTOK: TikTokMetricsProvider(),
 }
 
+#: The ``DEMO_MODE`` alternative: deterministic simulated metrics.
+#: See :mod:`app.services.metrics.sandbox`.
+_SANDBOX_PROVIDERS: dict[SocialPlatform, MetricsProvider] = {
+    SocialPlatform.FACEBOOK: SandboxFacebookMetricsProvider(),
+    SocialPlatform.INSTAGRAM: SandboxInstagramMetricsProvider(),
+    SocialPlatform.YOUTUBE: SandboxYouTubeMetricsProvider(),
+    SocialPlatform.TIKTOK: SandboxTikTokMetricsProvider(),
+}
+
 
 def get_metrics_provider(platform: SocialPlatform) -> MetricsProvider:
     """Return the metrics provider that implements ``platform``.
+
+    In ``DEMO_MODE`` the sandbox implementation is returned, which reports
+    simulated numbers instead of calling the platform.
 
     Raises:
         MetricsUnavailableError: the platform has no registered metrics
             implementation. The platform's metrics are reported as unavailable
             rather than crashing the dashboard.
     """
+    registry = _SANDBOX_PROVIDERS if settings.demo_mode else _PROVIDERS
     try:
-        return _PROVIDERS[platform]
+        return registry[platform]
     except KeyError as exc:  # pragma: no cover - guarded by the enum
         raise MetricsUnavailableError(
             f"No metrics provider is registered for '{platform.value}'."
