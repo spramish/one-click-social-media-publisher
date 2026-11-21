@@ -1,0 +1,27 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+# Process manager for the production image (Phase 15): multiple uvicorn workers
+# behind one supervisor that restarts a crashed worker and recycles the rest.
+gunicorn==23.0.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+# Provides the RFC-compliant address validation behind pydantic's EmailStr.
+email-validator==2.2.0
+SQLAlchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+redis==5.2.1
+celery==5.4.0
+# Pinned: kombu >=5.7 requires redis-py >=6.1.0, which conflicts with the
+# redis==5.2.1 pin above, so the worker refuses to start (VersionMismatch).
+kombu==5.6.2
+python-multipart==0.0.20
+PyJWT==2.10.1
+# Adaptive password hashing (Phase 3); used directly, not via passlib.
+bcrypt==4.2.1
+# AES-256-GCM + HKDF for encrypting OAuth tokens at rest (Phase 6).
+cryptography==44.0.0
+# Async HTTP client used by the OAuth providers (Phase 6) to call the platform
+# token/userinfo/revoke endpoints. Required at runtime, not just for tests.
+httpx==0.28.1
+sentry-sdk[fastapi]==2.19.2

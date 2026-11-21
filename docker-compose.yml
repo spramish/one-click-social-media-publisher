@@ -1,0 +1,119 @@
+# ===========================================================================
+# One-Click Social Media Video Publisher — Local development stack
+# Author: Pramish Sharma
+#
+# Run:  docker compose up --build
+# Stop: docker compose down          (keeps data volumes)
+# Wipe: docker compose down -v       (DELETES the database volume!)
+# ===========================================================================
+name: one-click-publisher
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ocp_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-publisher}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-publisher_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-publisher_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-publisher} -d ${POSTGRES_DB:-publisher_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: ocp_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ocp_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override hostnames so the container talks to the compose network.
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-publisher}:${POSTGRES_PASSWORD:-publisher_dev_password}@postgres:5432/${POSTGRES_DB:-publisher_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ocp_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-publisher}:${POSTGRES_PASSWORD:-publisher_dev_password}@postgres:5432/${POSTGRES_DB:-publisher_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A app.worker.celery_app worker --loglevel=info --pool=solo
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ocp_frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    command: >
+      npm run dev
+
+volumes:
+  postgres_data:
+  redis_data:
