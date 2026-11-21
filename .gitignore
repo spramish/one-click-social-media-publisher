@@ -39,6 +39,13 @@ next-env.d.ts
 *.log
 logs/
 
+# Celery Beat runtime state (regenerated on every start)
+backend/celerybeat-schedule*
+
+# Redis runtime state
+dump.rdb
+appendonly.aof*
+
 # Local storage / uploaded media (dev only)
 storage/
 media/
